@@ -12,7 +12,7 @@ import asyncpg
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import Message, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.exceptions import TelegramAPIError
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
