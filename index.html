@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WorkShift — мой график</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:var(--tg-theme-bg-color,#f5f6f8);--text:var(--tg-theme-text-color,#17202a);--muted:var(--tg-theme-hint-color,#687386);--card:var(--tg-theme-secondary-bg-color,#fff);--accent:var(--tg-theme-button-color,#2481cc);--accentText:var(--tg-theme-button-text-color,#fff);--line:rgba(128,128,128,.25)}
+*{box-sizing:border-box}body{margin:0;padding:16px 14px 32px;background:var(--bg);color:var(--text);font:16px system-ui,-apple-system,sans-serif}.wrap{max-width:620px;margin:auto}h1{font-size:25px;margin:4px 0}p.sub{color:var(--muted);margin:4px 0 18px}.card{background:var(--card);border-radius:16px;padding:15px;margin:12px 0}.label{display:block;font-weight:650;margin:12px 0 6px}select,input,button{font:inherit;border-radius:10px;padding:11px;border:1px solid var(--line);width:100%;background:var(--bg);color:var(--text)}button.primary{background:var(--accent);color:var(--accentText);border:0;font-weight:700;margin-top:14px}button.secondary{width:auto;padding:8px 12px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.checks{display:flex;gap:9px;align-items:center;margin:12px 0}.checks input{width:auto;transform:scale(1.2)}.calendar-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.calendar-head strong{flex:1;text-align:center}.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px}.dow,.day{font-size:12px;text-align:center;padding:8px 0}.day{border:1px solid var(--line);border-radius:9px;min-height:38px;background:var(--bg);cursor:pointer}.day.work{background:#d9f5df;color:#155c2c;border-color:#9ad5a7}.day.off{opacity:.7}.day.empty{border:0;background:transparent}.note{font-size:12px;color:var(--muted);line-height:1.45}.status{margin-top:10px;font-size:14px;color:var(--muted)}.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📅 WorkShift</h1>
+  <p class="sub">Твой график работы и напоминания</p>
+  <div class="card">
+    <label class="label" for="schedule">Схема работы</label>
+    <select id="schedule">
+      <option value="2/2">2 через 2</option>
+      <option value="5/2">5 через 2</option>
+      <option value="1/3">Сутки через трое</option>
+      <option value="manual">Свой график — отмечать дни вручную</option>
+    </select>
+    <label class="label" for="anchor">Дата, которая является рабочей</label>
+    <input id="anchor" type="date">
+    <p class="note">Для схемы 2/2, 5/2 или «сутки через трое» выбери дату, когда точно работаешь. Для ручного графика отмечай рабочие даты в календаре ниже.</p>
+    <label class="label" for="timezone">Часовой пояс</label>
+    <select id="timezone">
+      <option value="Europe/Warsaw">Europe/Warsaw</option>
+      <option value="Europe/Moscow">Europe/Moscow</option>
+      <option value="Europe/Kaliningrad">Europe/Kaliningrad</option>
+      <option value="Europe/Kyiv">Europe/Kyiv</option>
+      <option value="Asia/Almaty">Asia/Almaty</option>
+      <option value="Asia/Yekaterinburg">Asia/Yekaterinburg</option>
+      <option value="Asia/Novosibirsk">Asia/Novosibirsk</option>
+      <option value="Asia/Vladivostok">Asia/Vladivostok</option>
+    </select>
+  </div>
+  <div class="card">
+    <h3>🔔 Напоминания</h3>
+    <label class="checks"><input id="evening" type="checkbox" checked> Напоминать накануне</label>
+    <div class="row">
+      <div><label class="label" for="reminderHour">Время накануне</label><input id="reminderHour" type="time" value="20:00"></div>
+      <div><label class="label" for="hours">За сколько часов</label><select id="hours"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option><option>12</option><option>24</option></select></div>
+    </div>
+    <label class="checks"><input id="enabled" type="checkbox" checked> Включить уведомления</label>
+    <button class="primary" id="save">Сохранить настройки</button>
+    <div id="status" class="status">Открыто внутри Telegram</div>
+  </div>
+  <div class="card">
+    <div class="calendar-head">
+      <button class="secondary" id="prev">‹</button>
+      <strong id="monthTitle">Календарь</strong>
+      <button class="secondary" id="next">›</button>
+    </div>
+    <p class="note" id="calendarHint">Зелёным отмечены рабочие дни. В режиме ручного графика нажимай на дату, чтобы переключить её.</p>
+    <div class="grid" id="calendar"></div>
+  </div>
+  <p class="note">Для сохранения настроек открой это приложение из меню Telegram-бота. Не передавай никому токен бота.</p>
+</div>
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready(); tg?.expand();
+const initData = tg?.initData || "";
+const $ = id => document.getElementById(id);
+let month = new Date(); month.setDate(1);
+let settings = null;
+const api = async (path, options={}) => {
+  const res = await fetch(path, {...options, headers: {
+    "Content-Type":"application/json",
+    "X-Telegram-Init-Data":initData,
+    ...(options.headers||{})
+  }});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || "Ошибка сервера");
+  return data;
+};
+function localDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function showStatus(t){$("status").textContent=t}
+function readForm(){
+ const [reminder_hour, reminder_minute] = $("reminderHour").value.split(":").map(Number);
+ return {schedule_type:$("schedule").value, anchor_date:$("anchor").value || localDate(new Date()),
+ timezone:$("timezone").value, reminder_evening:$("evening").checked,
+ reminder_hour, reminder_minute, reminder_hours:Number($("hours").value), enabled:$("enabled").checked};
+}
+async function save(){
+ try {settings=readForm(); await api("/api/settings",{method:"POST",body:JSON.stringify(settings)});showStatus("Настройки сохранены ✅");await renderCalendar();}
+ catch(e){showStatus("Не удалось сохранить: "+e.message);}
+}
+async function renderCalendar(){
+ const year=month.getFullYear(), mon=month.getMonth()+1;
+ $("monthTitle").textContent=month.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
+ const host=$("calendar");host.innerHTML="";
+ ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].forEach(x=>{const el=document.createElement("div");el.className="dow";el.textContent=x;host.append(el)});
+ try {
+  const data=await api(`/api/calendar?month=${year}-${String(mon).padStart(2,"0")}`);
+  const first=new Date(year,mon-1,1);const shift=(first.getDay()+6)%7;
+  for(let i=0;i<shift;i++){const e=document.createElement("div");e.className="day empty";host.append(e)}
+  data.days.forEach(item=>{
+   const d=document.createElement("button");d.className="day "+(item.work?"work":"off");d.textContent=String(Number(item.date.slice(-2)));
+   d.title=item.work?"Рабочий день":"Выходной";
+   if(settings?.schedule_type==="manual"){
+    d.addEventListener("click",async()=>{try{await api("/api/manual-day",{method:"POST",body:JSON.stringify({date:item.date})});await renderCalendar()}catch(e){showStatus(e.message)}});
+   }
+   host.append(d);
+  });
+  $("calendarHint").textContent=settings?.schedule_type==="manual"?"Нажимай на даты, чтобы отмечать или снимать рабочие дни.":"Зелёным отмечены рабочие дни по выбранному циклу.";
+ }catch(e){showStatus("Не удалось загрузить календарь: "+e.message)}
+}
+async function init(){
+ if(!initData){showStatus("Открой Mini App через кнопку в Telegram, чтобы авторизоваться.");return;}
+ try{
+  settings=await api("/api/settings");
+  $("schedule").value=settings.schedule_type;
+  $("anchor").value=settings.anchor_date;
+  $("timezone").value=settings.timezone;
+  $("evening").checked=!!settings.reminder_evening;
+  $("reminderHour").value=`${String(settings.reminder_hour).padStart(2,"0")}:${String(settings.reminder_minute).padStart(2,"0")}`;
+  $("hours").value=String(settings.reminder_hours);
+  $("enabled").checked=!!settings.enabled;
+  await renderCalendar();
+ }catch(e){showStatus("Не удалось загрузить профиль: "+e.message)}
+}
+$("save").addEventListener("click",save);
+$("prev").addEventListener("click",()=>{month.setMonth(month.getMonth()-1);renderCalendar()});
+$("next").addEventListener("click",()=>{month.setMonth(month.getMonth()+1);renderCalendar()});
+$("schedule").addEventListener("change",()=>{settings={...settings,...readForm()};renderCalendar()});
+init();
+</script>
+</body>
+</html>
