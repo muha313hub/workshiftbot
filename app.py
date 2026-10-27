@@ -4,6 +4,7 @@ import hmac
 import hashlib
 import logging
 import asyncio
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from urllib.parse import parse_qsl
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
