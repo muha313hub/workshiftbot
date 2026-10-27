@@ -287,6 +287,12 @@ async def check_reminders():
         users = [dict(r) for r in await db.fetch("SELECT * FROM settings WHERE enabled=1")]
     for settings in users:
         user_id = settings["user_id"]
+        log.info(
+    "REMINDER CHECK user_id=%s timezone=%s schedule=%s",
+    user_id,
+    settings["timezone"],
+    settings["schedule_type"],
+        )
         try:
             local_now = now_for(settings["timezone"])
             today = local_now.date()
@@ -323,7 +329,14 @@ async def send_once(user_id: int, work_date: date, kind: str, text: str):
                 return
 
             try:
-                await bot.send_message(user_id, text)
+                
+                awalog.info(
+    "SENDING REMINDER user_id=%s date=%s kind=%s",
+    user_id,
+    work_date,
+    kind,
+                )
+                it bot.send_message(user_id, text)
             except TelegramAPIError:
                 log.exception("Could not send reminder to %s", user_id)
                 raise
