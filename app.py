@@ -306,14 +306,27 @@ async def check_reminders():
 
 async def send_once(user_id: int, work_date: date, kind: str, text: str):
     assert db_pool is not None and bot is not None
+
     async with db_pool.acquire() as db:
-        inserted = await db.fetchval("INSERT INTO sent_reminders(user_id, work_date, reminder_type) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1", user_id, work_date, kind)
-    if not inserted:
-        return
-    try:
-        await bot.send_message(user_id, text)
-    except TelegramAPIError:
-        log.exception("Could not send reminder to %s", user_id)
+        async with db.transaction():
+            inserted = await db.fetchval(
+                """
+                INSERT INTO sent_reminders (user_id, work_date, reminder_type)
+                VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
+                RETURNING 1
+                """,
+                user_id, work_date, kind
+            )
+
+            if not inserted:
+                return
+
+            try:
+                await bot.send_message(user_id, text)
+            except TelegramAPIError:
+                log.exception("Could not send reminder to %s", user_id)
+                raise
 
 
 if __name__ == "__main__":
