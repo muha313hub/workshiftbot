@@ -9,7 +9,7 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: TIMEZONE
         value: Europe/Warsaw
-      - key: DATABASE_PATH
-        value: data/workshift.sqlite3
