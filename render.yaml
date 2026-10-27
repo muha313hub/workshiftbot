@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: workshift-telegram-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: TIMEZONE
+        value: Europe/Warsaw
+      - key: DATABASE_PATH
+        value: data/workshift.sqlite3
